@@ -13,7 +13,7 @@ WiFiClient wifi;
 PubSubClient mqtt(wifi);
 
 int on_time = 0;
-int on_motion = 0;
+int on_motion = LOW;
 
 void callback(char* t, byte* p, unsigned int l) {}
 
@@ -82,12 +82,12 @@ void loop() {
   
   if (digitalRead(0) == HIGH && on_motion == LOW) {
     on_motion = HIGH;
-    mqtt.publish("usensor/motion/getvalue", String(on_motion).c_str());
-    Serial.println("montion: detect");
+    mqtt.publish("usensor/motion/getvalue", "ON");
+    Serial.println("montion: detected");
   } else if (digitalRead(0) == LOW && on_motion == HIGH) {
     on_motion = LOW;
-    mqtt.publish("usensor/motion/getvalue", String(on_motion).c_str());
-    Serial.println("montion: nothing");
+    mqtt.publish("usensor/motion/getvalue", "OFF");
+    Serial.println("montion: clear");
   }
   
   mqtt.loop();
