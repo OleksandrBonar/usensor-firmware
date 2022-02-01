@@ -13,6 +13,7 @@ WiFiClient wifi;
 PubSubClient mqtt(wifi);
 
 int on_time = 0;
+int on_motion = 0;
 
 void callback(char* t, byte* p, unsigned int l) {}
 
@@ -20,7 +21,7 @@ void setup() {
   Serial.begin(9600);
   
   Wire.begin();
-  sht.begin(0x44); // 0x45
+  sht.begin(0x45);
   Wire.setClock(100000);
 
   uint16_t stat = sht.readStatus();
@@ -49,6 +50,7 @@ void setup() {
   mqtt.setCallback(callback);
   
   on_time = millis();
+  on_motion = digitalRead(2);
 }
 
 void loop() {
@@ -78,5 +80,13 @@ void loop() {
     sht.read();
     mqtt.publish("usensor/temperature/getvalue", String(sht.getTemperature()).c_str());
     mqtt.publish("usensor/humidity/getvalue", String(sht.getHumidity()).c_str());
+  }
+  
+  if (digitalRead(2) && on_motion == 0) {
+    on_motion = 1;
+    mqtt.publish("usensor/motion/getvalue", String(on_motion).c_str());
+  } else if (on_motion) {
+    on_motion = 0;
+    mqtt.publish("usensor/motion/getvalue", String(on_motion).c_str());
   }
 }
