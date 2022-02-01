@@ -73,8 +73,10 @@ void loop() {
   mqtt.loop();
   
   if (millis() - on_time >= 5000) {
+    on_time = millis();
+
     sht.read();
     mqtt.publish("usensor/temperature/getvalue", String(sht.getTemperature()).c_str());
-    mqtt.publish("usensor/temperature/getvalue", String(sht.getHumidity()).c_str());
+    mqtt.publish("usensor/humidity/getvalue", String(sht.getHumidity()).c_str());
   }
 }
