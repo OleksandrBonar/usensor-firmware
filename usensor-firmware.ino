@@ -50,7 +50,7 @@ void setup() {
   mqtt.setCallback(callback);
   
   on_time = millis();
-  on_motion = digitalRead(2);
+  on_motion = digitalRead(0);
 }
 
 void loop() {
@@ -71,8 +71,6 @@ void loop() {
       }
     }
   }
-
-  mqtt.loop();
   
   if (millis() - on_time >= 5000) {
     on_time = millis();
@@ -82,11 +80,15 @@ void loop() {
     mqtt.publish("usensor/humidity/getvalue", String(sht.getHumidity()).c_str());
   }
   
-  if (digitalRead(2) && on_motion == 0) {
-    on_motion = 1;
+  if (digitalRead(0) == HIGH && on_motion == LOW) {
+    on_motion = HIGH;
     mqtt.publish("usensor/motion/getvalue", String(on_motion).c_str());
-  } else if (on_motion) {
-    on_motion = 0;
+    Serial.println("montion: detect");
+  } else if (digitalRead(0) == LOW && on_motion == HIGH) {
+    on_motion = LOW;
     mqtt.publish("usensor/motion/getvalue", String(on_motion).c_str());
+    Serial.println("montion: nothing");
   }
+  
+  mqtt.loop();
 }
