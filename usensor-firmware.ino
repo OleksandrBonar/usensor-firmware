@@ -12,8 +12,18 @@ SHT31 sht;
 WiFiClient wifi;
 PubSubClient mqtt(wifi);
 
-int on_time = 0;
+int on_sht = 0;
 int on_motion = LOW;
+
+float temperature_avg = 0.0f;
+float temperature_now = 0.0f;
+float temperature_lst = 0.0f;
+float temperature_snd = 0.0f;
+
+float humidity_avg = 0.0f;
+float humidity_now = 0.0f;
+float humidity_lst = 0.0f;
+float humidity_snd = 0.0f;
 
 void callback(char* t, byte* p, unsigned int l) {}
 
@@ -43,13 +53,15 @@ void setup() {
 
   Serial.println("");
   Serial.println("wifi connected");
-  Serial.println("ip address: ");
+  Serial.print("ip: ");
   Serial.println(WiFi.localIP());
+  Serial.print("mac: ");
+  Serial.println(WiFi.macAddress());
   
   mqtt.setServer("192.168.0.111", 1883);
   mqtt.setCallback(callback);
   
-  on_time = millis();
+  on_sht = millis();
   on_motion = digitalRead(0);
 }
 
@@ -66,18 +78,42 @@ void loop() {
         Serial.print("mqtt connection failed, rc=");
         Serial.print(mqtt.state());
         Serial.println(" try again in 2 seconds");
-        // Wait 5 seconds before retrying
+        // Wait 2 seconds before retrying
         delay(2000);
       }
     }
   }
   
-  if (millis() - on_time >= 5000) {
-    on_time = millis();
+  if (millis() - on_sht >= 1000) {
+    on_sht = millis();
 
-    sht.read();
-    mqtt.publish("usensor/temperature/getvalue", String(sht.getTemperature()).c_str());
-    mqtt.publish("usensor/humidity/getvalue", String(sht.getHumidity()).c_str());
+    if (sht.isConnected()) {
+      sht.read();
+
+      temperature_now = sht.getTemperature();
+      temperature_avg = (temperature_now + temperature_lst) / 2;
+      temperature_avg = 0.5 * round(2.0 * temperature_avg);
+      temperature_lst = temperature_now;
+      
+      humidity_now = sht.getHumidity();
+      humidity_avg = (humidity_now + humidity_lst) / 2;
+      humidity_avg = 0.5 * round(2.0 * humidity_avg);
+      humidity_lst = humidity_now;
+    }
+  }
+  
+  if (temperature_snd != temperature_avg) {
+    temperature_snd = temperature_avg;
+    mqtt.publish("usensor/temperature/getvalue", String(temperature_snd).c_str());
+    Serial.print("temperature: ");
+    Serial.println(temperature_snd);
+  }
+  
+  if (humidity_snd != humidity_avg) {
+    humidity_snd = humidity_avg;
+    mqtt.publish("usensor/humidity/getvalue", String(humidity_snd).c_str());
+    Serial.print("humidity: ");
+    Serial.println(humidity_snd);
   }
   
   if (digitalRead(0) == HIGH && on_motion == LOW) {
