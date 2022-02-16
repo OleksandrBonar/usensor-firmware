@@ -15,15 +15,16 @@ PubSubClient mqtt(wifi);
 int on_sht = 0;
 int on_motion = LOW;
 
+#define TEMP_SAMPLE_CNT 5
+#define HMDT_SAMPLE_CNT 5
+
 float temperature_avg = 0.0f;
-float temperature_now = 0.0f;
-float temperature_lst = 0.0f;
 float temperature_snd = 0.0f;
+float temperature_tmp[TEMP_SAMPLE_CNT] = { 0.0f };
 
 float humidity_avg = 0.0f;
-float humidity_now = 0.0f;
-float humidity_lst = 0.0f;
 float humidity_snd = 0.0f;
+float humidity_tmp[HMDT_SAMPLE_CNT] = { 0.0f };
 
 void callback(char* t, byte* p, unsigned int l) {}
 
@@ -90,15 +91,31 @@ void loop() {
     if (sht.isConnected()) {
       sht.read();
 
-      temperature_now = sht.getTemperature();
-      temperature_avg = (temperature_now + temperature_lst) / 2;
+      // Temperature SMA calculation
+      for (int i = TEMP_SAMPLE_CNT; i > 1; i--) {
+        temperature_tmp[i - 1] = temperature_tmp[i - 2];
+      }
+      temperature_tmp[0] = sht.getTemperature();
+
+      temperature_avg = 0.0f;
+      for (int i = 0; i < TEMP_SAMPLE_CNT; i++) {
+        temperature_avg += temperature_tmp[i];
+      }
+      temperature_avg /= TEMP_SAMPLE_CNT;
       temperature_avg = 0.5 * round(2.0 * temperature_avg);
-      temperature_lst = temperature_now;
       
-      humidity_now = sht.getHumidity();
-      humidity_avg = (humidity_now + humidity_lst) / 2;
+      // Humidity SMA calculation
+      for (int i = HMDT_SAMPLE_CNT; i > 1; i--) {
+        humidity_tmp[i - 1] = humidity_tmp[i - 2];
+      }
+      humidity_tmp[0] = sht.getHumidity();
+
+      humidity_avg = 0.0f;
+      for (int i = 0; i < HMDT_SAMPLE_CNT; i++) {
+        humidity_avg += humidity_tmp[i];
+      }
+      humidity_avg /= HMDT_SAMPLE_CNT;
       humidity_avg = 0.5 * round(2.0 * humidity_avg);
-      humidity_lst = humidity_now;
     }
   }
   
