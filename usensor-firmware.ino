@@ -3,8 +3,11 @@
 #include "Wire.h"
 #include "SHT31.h"
 
-// Your WiFi credentials.
-// Set password to "" for open networks.
+#define TEMP_FLUSH_CNT 60
+#define TEMP_SAMPLE_CNT 15
+#define HMDT_FLUSH_CNT 60
+#define HMDT_SAMPLE_CNT 15
+
 char ssid[] = "";
 char pass[] = "";
 
@@ -15,13 +18,12 @@ PubSubClient mqtt(wifi);
 int on_sht = 0;
 int on_motion = LOW;
 
-#define TEMP_SAMPLE_CNT 5
-#define HMDT_SAMPLE_CNT 5
-
+int temperature_cnt = 0;
 float temperature_avg = 0.0f;
 float temperature_snd = 0.0f;
 float temperature_tmp[TEMP_SAMPLE_CNT] = { 0.0f };
 
+int humidity_cnt = 0;
 float humidity_avg = 0.0f;
 float humidity_snd = 0.0f;
 float humidity_tmp[HMDT_SAMPLE_CNT] = { 0.0f };
@@ -87,6 +89,9 @@ void loop() {
   
   if (millis() - on_sht >= 1000) {
     on_sht = millis();
+    
+    humidity_cnt++;
+    temperature_cnt++;
 
     if (sht.isConnected()) {
       sht.read();
@@ -119,15 +124,19 @@ void loop() {
     }
   }
   
-  if (temperature_snd != temperature_avg) {
+  if (temperature_snd != temperature_avg || temperature_cnt % TEMP_FLUSH_CNT == 0) {
+    temperature_cnt = 0;
     temperature_snd = temperature_avg;
+    
     mqtt.publish("usensor/temperature/getvalue", String(temperature_snd).c_str());
     Serial.print("temperature: ");
     Serial.println(temperature_snd);
   }
   
-  if (humidity_snd != humidity_avg) {
+  if (humidity_snd != humidity_avg || humidity_cnt % TEMP_FLUSH_CNT == 0) {
+    humidity_cnt = 0;
     humidity_snd = humidity_avg;
+    
     mqtt.publish("usensor/humidity/getvalue", String(humidity_snd).c_str());
     Serial.print("humidity: ");
     Serial.println(humidity_snd);
