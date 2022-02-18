@@ -18,12 +18,12 @@ PubSubClient mqtt(wifi);
 int on_sht = 0;
 int on_motion = LOW;
 
-int temperature_cnt = 0;
+int temperature_cnt = 1;
 float temperature_avg = 0.0f;
 float temperature_snd = 0.0f;
 float temperature_tmp[TEMP_SAMPLE_CNT] = { 0.0f };
 
-int humidity_cnt = 0;
+int humidity_cnt = 1;
 float humidity_avg = 0.0f;
 float humidity_snd = 0.0f;
 float humidity_tmp[HMDT_SAMPLE_CNT] = { 0.0f };
@@ -125,7 +125,7 @@ void loop() {
   }
   
   if (temperature_snd != temperature_avg || temperature_cnt % TEMP_FLUSH_CNT == 0) {
-    temperature_cnt = 0;
+    temperature_cnt = 1;
     temperature_snd = temperature_avg;
     
     mqtt.publish("usensor/temperature/getvalue", String(temperature_snd).c_str());
@@ -134,7 +134,7 @@ void loop() {
   }
   
   if (humidity_snd != humidity_avg || humidity_cnt % TEMP_FLUSH_CNT == 0) {
-    humidity_cnt = 0;
+    humidity_cnt = 1;
     humidity_snd = humidity_avg;
     
     mqtt.publish("usensor/humidity/getvalue", String(humidity_snd).c_str());
