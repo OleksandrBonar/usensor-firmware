@@ -153,8 +153,8 @@ void loop() {
     lux_cnt = 1;
     lux_snd = lux_avg;
     
-    mqtt.publish("usensor/ambient_light/getvalue", String(lux_snd).c_str());
-    Serial.print("ambient_light: ");
+    mqtt.publish("usensor/illuminance/getvalue", String(lux_snd).c_str());
+    Serial.print("illuminance: ");
     Serial.println(lux_snd);
   }
   
