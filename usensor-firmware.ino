@@ -2,7 +2,10 @@
 #include <PubSubClient.h>
 #include "Wire.h"
 #include "SHT31.h"
+#include <BH1750.h>
 
+#define LUX_FLUSH_CNT 60
+#define LUX_SAMPLE_CNT 15
 #define TEMP_FLUSH_CNT 60
 #define TEMP_SAMPLE_CNT 15
 #define HMDT_FLUSH_CNT 60
@@ -12,11 +15,17 @@ char ssid[] = "";
 char pass[] = "";
 
 SHT31 sht;
+BH1750 lightMeter;
 WiFiClient wifi;
 PubSubClient mqtt(wifi);
 
 int on_sht = 0;
 int on_motion = LOW;
+
+int lux_cnt = 1;
+float lux_avg = 0.0f;
+float lux_snd = 0.0f;
+float lux_tmp[LUX_SAMPLE_CNT] = { 0.0f };
 
 int temperature_cnt = 1;
 float temperature_avg = 0.0f;
@@ -34,8 +43,10 @@ void setup() {
   Serial.begin(9600);
   
   Wire.begin();
-  sht.begin(0x45);
   Wire.setClock(100000);
+
+  sht.begin(0x45);
+  lightMeter.begin();
 
   uint16_t stat = sht.readStatus();
   Serial.print(stat, HEX);
@@ -89,9 +100,23 @@ void loop() {
   
   if (millis() - on_sht >= 1000) {
     on_sht = millis();
-    
+
+    lux_cnt++;
     humidity_cnt++;
     temperature_cnt++;
+    
+    // Lux SMA calculation
+    for (int i = LUX_SAMPLE_CNT; i > 1; i--) {
+      lux_tmp[i - 1] = lux_tmp[i - 2];
+    }
+    lux_tmp[0] = lightMeter.readLightLevel();
+
+    lux_avg = 0.0f;
+    for (int i = 0; i < LUX_SAMPLE_CNT; i++) {
+      lux_avg += lux_tmp[i];
+    }
+    lux_avg /= LUX_SAMPLE_CNT;
+    lux_avg = 0.5 * round(2.0 * lux_avg);
 
     if (sht.isConnected()) {
       sht.read();
@@ -122,6 +147,15 @@ void loop() {
       humidity_avg /= HMDT_SAMPLE_CNT;
       humidity_avg = 0.5 * round(2.0 * humidity_avg);
     }
+  }
+
+  if (lux_snd != lux_avg || lux_cnt % LUX_FLUSH_CNT == 0) {
+    lux_cnt = 1;
+    lux_snd = lux_avg;
+    
+    mqtt.publish("usensor/ambient_light/getvalue", String(lux_snd).c_str());
+    Serial.print("ambient_light: ");
+    Serial.println(lux_snd);
   }
   
   if (temperature_snd != temperature_avg || temperature_cnt % TEMP_FLUSH_CNT == 0) {
