@@ -10,6 +10,7 @@
 #define TEMP_SAMPLE_CNT 15
 #define HMDT_FLUSH_CNT 60
 #define HMDT_SAMPLE_CNT 15
+#define MOTION_PIN 0
 
 char ssid[] = "";
 char pass[] = "";
@@ -75,8 +76,10 @@ void setup() {
   mqtt.setServer("192.168.0.111", 1883);
   mqtt.setCallback(callback);
   
+  pinMode(MOTION_PIN, INPUT_PULLUP);
+  
   on_sht = millis();
-  on_motion = digitalRead(0);
+  on_motion = digitalRead(MOTION_PIN);
 }
 
 void loop() {
@@ -167,7 +170,7 @@ void loop() {
     Serial.println(temperature_snd);
   }
   
-  if (humidity_snd != humidity_avg || humidity_cnt % TEMP_FLUSH_CNT == 0) {
+  if (humidity_snd != humidity_avg || humidity_cnt % HMDT_FLUSH_CNT == 0) {
     humidity_cnt = 1;
     humidity_snd = humidity_avg;
     
