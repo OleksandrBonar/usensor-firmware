@@ -1,7 +1,7 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
-#include "Wire.h"
-#include "SHT31.h"
+#include <Wire.h>
+#include <SHT31.h>
 #include <BH1750.h>
 
 #define LUX_FLUSH_CNT 60
