@@ -91,6 +91,7 @@ void loop() {
         Serial.println("mqtt connected");
         // Once connected, publish an announcement...
         mqtt.publish("usensor/system/getonline", "online");
+        mqtt.publish("usensor/motion/getvalue", on_motion == LOW ? "OFF" : "ON");
       } else {
         Serial.print("mqtt connection failed, rc=");
         Serial.print(mqtt.state());
