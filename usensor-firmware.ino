@@ -14,10 +14,13 @@
     #define TEMPERATURE 1
 #endif
 
+#ifndef ILLUMINANCE
+    #define ILLUMINANCE 1
+#endif
+
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include <Wire.h>
-#include <BH1750.h>
 
 #ifdef DISPLAY
     #include <U8g2lib.h>
@@ -52,24 +55,30 @@
     float temperature_tmp[TEMP_SAMPLE_CNT] = { 0.0f };
 #endif
 
-#define LUX_FLUSH_CNT 60
-#define LUX_SAMPLE_CNT 15
+#ifdef ILLUMINANCE
+    #include <BH1750.h>
+
+    BH1750 bh1750;
+
+    #define ILLUMINANCE_FLUSH_CNT 60
+    #define ILLUMINANCE_SAMPLE_CNT 15
+
+    int illuminance_cnt = 1;
+    float illuminance_avg = 0.0f;
+    float illuminance_snd = 0.0f;
+    float illuminance_tmp[ILLUMINANCE_SAMPLE_CNT] = { 0.0f };
+#endif
+
 #define MOTION_PIN 0
 
 char ssid[] = "";
 char pass[] = "";
 
-BH1750 lightMeter;
 WiFiClient wifi;
 PubSubClient mqtt(wifi);
 
 int on_time = 0;
 int on_motion = LOW;
-
-int lux_cnt = 1;
-float lux_avg = 0.0f;
-float lux_snd = 0.0f;
-float lux_tmp[LUX_SAMPLE_CNT] = { 0.0f };
 
 void callback(char* t, byte* p, unsigned int l) {}
 
@@ -87,8 +96,11 @@ void display_measures() {
     display.drawString(2, 1, String(temperature_snd).c_str());
 #endif
 
+#ifdef ILLUMINANCE
     display.drawString(0, 2, "i:");
-    display.drawString(2, 2, String(lux_snd).c_str());
+    display.drawString(2, 2, String(illuminance_snd).c_str());
+#endif
+
     display.drawString(0, 3, "m:");
     display.drawString(2, 3, on_motion == HIGH ? "yes" : "no");
 }
@@ -106,7 +118,9 @@ void setup() {
     sht.begin(0x45);
 #endif
 
-    lightMeter.begin();
+#ifdef ILLUMINANCE
+    bh1750.begin();
+#endif
 
 #ifdef DISPLAY
     display.begin();
@@ -193,8 +207,6 @@ void loop() {
     if (millis() - on_time >= 1000) {
         on_time = millis();
 
-        lux_cnt++;
-
 #ifdef HUMIDITY
         humidity_cnt++;
 #endif
@@ -202,19 +214,23 @@ void loop() {
 #ifdef TEMPERATURE
         temperature_cnt++;
 #endif
-    
-        // Lux SMA calculation
-        for (int i = LUX_SAMPLE_CNT; i > 1; i--) {
-            lux_tmp[i - 1] = lux_tmp[i - 2];
-        }
-        lux_tmp[0] = lightMeter.readLightLevel();
 
-        lux_avg = 0.0f;
-        for (int i = 0; i < LUX_SAMPLE_CNT; i++) {
-            lux_avg += lux_tmp[i];
+#ifdef ILLUMINANCE
+        illuminance_cnt++;
+    
+        // Illuminance SMA calculation
+        for (int i = ILLUMINANCE_SAMPLE_CNT; i > 1; i--) {
+            illuminance_tmp[i - 1] = illuminance_tmp[i - 2];
         }
-        lux_avg /= LUX_SAMPLE_CNT;
-        lux_avg = 0.5 * round(2.0 * lux_avg);
+        illuminance_tmp[0] = bh1750.readLightLevel();
+
+        illuminance_avg = 0.0f;
+        for (int i = 0; i < ILLUMINANCE_SAMPLE_CNT; i++) {
+            illuminance_avg += illuminance_tmp[i];
+        }
+        illuminance_avg /= ILLUMINANCE_SAMPLE_CNT;
+        illuminance_avg = 0.5 * round(2.0 * illuminance_avg);
+#endif
 
 #if defined HUMIDITY || defined TEMPERATURE
         if (sht.isConnected()) {
@@ -253,21 +269,23 @@ void loop() {
 #endif
     }
 
-    if (lux_snd != lux_avg || lux_cnt % LUX_FLUSH_CNT == 0) {
-        lux_cnt = 1;
-        lux_snd = lux_avg;
+#ifdef ILLUMINANCE
+    if (illuminance_snd != illuminance_avg || illuminance_cnt % ILLUMINANCE_FLUSH_CNT == 0) {
+        illuminance_cnt = 1;
+        illuminance_snd = illuminance_avg;
 
-        mqtt.publish("usensor/illuminance/getvalue", String(lux_snd).c_str());
+        mqtt.publish("usensor/illuminance/getvalue", String(illuminance_snd).c_str());
 
 #ifdef SERIAL
         Serial.print("illuminance: ");
-        Serial.println(lux_snd);
+        Serial.println(illuminance_snd);
 #endif
 
 #ifdef DISPLAY
         display_measures();
 #endif
     }
+#endif
 
 #ifdef HUMIDITY
     if (humidity_snd != humidity_avg || humidity_cnt % HMDT_FLUSH_CNT == 0) {
