@@ -6,10 +6,17 @@
     #define SERIAL 1
 #endif
 
+#ifndef HUMIDITY
+    #define HUMIDITY 1
+#endif
+
+#ifndef TEMPERATURE
+    #define TEMPERATURE 1
+#endif
+
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include <Wire.h>
-#include <SHT31.h>
 #include <BH1750.h>
 
 #ifdef DISPLAY
@@ -19,23 +26,44 @@
     U8X8_SSD1306_64X48_ER_HW_I2C display(U8X8_PIN_NONE);
 #endif
 
+#if defined HUMIDITY || defined TEMPERATURE
+    #include <SHT31.h>
+
+    SHT31 sht;
+#endif
+
+#ifdef HUMIDITY
+    #define HMDT_FLUSH_CNT 60
+    #define HMDT_SAMPLE_CNT 15
+
+    int humidity_cnt = 1;
+    float humidity_avg = 0.0f;
+    float humidity_snd = 0.0f;
+    float humidity_tmp[HMDT_SAMPLE_CNT] = { 0.0f };
+#endif
+
+#ifdef TEMPERATURE
+    #define TEMP_FLUSH_CNT 60
+    #define TEMP_SAMPLE_CNT 15
+
+    int temperature_cnt = 1;
+    float temperature_avg = 0.0f;
+    float temperature_snd = 0.0f;
+    float temperature_tmp[TEMP_SAMPLE_CNT] = { 0.0f };
+#endif
+
 #define LUX_FLUSH_CNT 60
 #define LUX_SAMPLE_CNT 15
-#define TEMP_FLUSH_CNT 60
-#define TEMP_SAMPLE_CNT 15
-#define HMDT_FLUSH_CNT 60
-#define HMDT_SAMPLE_CNT 15
 #define MOTION_PIN 0
 
 char ssid[] = "";
 char pass[] = "";
 
-SHT31 sht;
 BH1750 lightMeter;
 WiFiClient wifi;
 PubSubClient mqtt(wifi);
 
-int on_sht = 0;
+int on_time = 0;
 int on_motion = LOW;
 
 int lux_cnt = 1;
@@ -43,25 +71,22 @@ float lux_avg = 0.0f;
 float lux_snd = 0.0f;
 float lux_tmp[LUX_SAMPLE_CNT] = { 0.0f };
 
-int temperature_cnt = 1;
-float temperature_avg = 0.0f;
-float temperature_snd = 0.0f;
-float temperature_tmp[TEMP_SAMPLE_CNT] = { 0.0f };
-
-int humidity_cnt = 1;
-float humidity_avg = 0.0f;
-float humidity_snd = 0.0f;
-float humidity_tmp[HMDT_SAMPLE_CNT] = { 0.0f };
-
 void callback(char* t, byte* p, unsigned int l) {}
 
 #ifdef DISPLAY
 void display_measures() {
     display.clearDisplay();
-    display.drawString(0, 0, "t:");
-    display.drawString(2, 0, String(temperature_snd).c_str());
-    display.drawString(0, 1, "h:");
-    display.drawString(2, 1, String(humidity_snd).c_str());
+
+#ifdef HUMIDITY
+    display.drawString(0, 0, "h:");
+    display.drawString(2, 0, String(humidity_snd).c_str());
+#endif
+
+#ifdef TEMPERATURE
+    display.drawString(0, 1, "t:");
+    display.drawString(2, 1, String(temperature_snd).c_str());
+#endif
+
     display.drawString(0, 2, "i:");
     display.drawString(2, 2, String(lux_snd).c_str());
     display.drawString(0, 3, "m:");
@@ -77,7 +102,10 @@ void setup() {
     Wire.begin();
     Wire.setClock(100000);
 
+#if defined HUMIDITY || defined TEMPERATURE
     sht.begin(0x45);
+#endif
+
     lightMeter.begin();
 
 #ifdef DISPLAY
@@ -130,7 +158,7 @@ void setup() {
 
     pinMode(MOTION_PIN, INPUT_PULLUP);
 
-    on_sht = millis();
+    on_time = millis();
     on_motion = digitalRead(MOTION_PIN);
 }
 
@@ -162,12 +190,18 @@ void loop() {
         }
     }
   
-    if (millis() - on_sht >= 1000) {
-        on_sht = millis();
+    if (millis() - on_time >= 1000) {
+        on_time = millis();
 
         lux_cnt++;
+
+#ifdef HUMIDITY
         humidity_cnt++;
+#endif
+
+#ifdef TEMPERATURE
         temperature_cnt++;
+#endif
     
         // Lux SMA calculation
         for (int i = LUX_SAMPLE_CNT; i > 1; i--) {
@@ -182,22 +216,11 @@ void loop() {
         lux_avg /= LUX_SAMPLE_CNT;
         lux_avg = 0.5 * round(2.0 * lux_avg);
 
+#if defined HUMIDITY || defined TEMPERATURE
         if (sht.isConnected()) {
             sht.read();
 
-            // Temperature SMA calculation
-            for (int i = TEMP_SAMPLE_CNT; i > 1; i--) {
-                temperature_tmp[i - 1] = temperature_tmp[i - 2];
-            }
-            temperature_tmp[0] = sht.getTemperature();
-
-            temperature_avg = 0.0f;
-            for (int i = 0; i < TEMP_SAMPLE_CNT; i++) {
-                temperature_avg += temperature_tmp[i];
-            }
-            temperature_avg /= TEMP_SAMPLE_CNT;
-            temperature_avg = 0.5 * round(2.0 * temperature_avg);
-      
+#ifdef HUMIDITY
             // Humidity SMA calculation
             for (int i = HMDT_SAMPLE_CNT; i > 1; i--) {
                 humidity_tmp[i - 1] = humidity_tmp[i - 2];
@@ -210,7 +233,24 @@ void loop() {
             }
             humidity_avg /= HMDT_SAMPLE_CNT;
             humidity_avg = 0.5 * round(2.0 * humidity_avg);
+#endif
+
+#ifdef TEMPERATURE
+            // Temperature SMA calculation
+            for (int i = TEMP_SAMPLE_CNT; i > 1; i--) {
+                temperature_tmp[i - 1] = temperature_tmp[i - 2];
+            }
+            temperature_tmp[0] = sht.getTemperature();
+
+            temperature_avg = 0.0f;
+            for (int i = 0; i < TEMP_SAMPLE_CNT; i++) {
+                temperature_avg += temperature_tmp[i];
+            }
+            temperature_avg /= TEMP_SAMPLE_CNT;
+            temperature_avg = 0.5 * round(2.0 * temperature_avg);
+#endif
         }
+#endif
     }
 
     if (lux_snd != lux_avg || lux_cnt % LUX_FLUSH_CNT == 0) {
@@ -228,23 +268,8 @@ void loop() {
         display_measures();
 #endif
     }
-  
-    if (temperature_snd != temperature_avg || temperature_cnt % TEMP_FLUSH_CNT == 0) {
-        temperature_cnt = 1;
-        temperature_snd = temperature_avg;
 
-        mqtt.publish("usensor/temperature/getvalue", String(temperature_snd).c_str());
-
-#ifdef SERIAL
-        Serial.print("temperature: ");
-        Serial.println(temperature_snd);
-#endif
-
-#ifdef DISPLAY
-        display_measures();
-#endif
-    }
-  
+#ifdef HUMIDITY
     if (humidity_snd != humidity_avg || humidity_cnt % HMDT_FLUSH_CNT == 0) {
         humidity_cnt = 1;
         humidity_snd = humidity_avg;
@@ -260,6 +285,25 @@ void loop() {
         display_measures();
 #endif
     }
+#endif
+
+#ifdef TEMPERATURE
+    if (temperature_snd != temperature_avg || temperature_cnt % TEMP_FLUSH_CNT == 0) {
+        temperature_cnt = 1;
+        temperature_snd = temperature_avg;
+
+        mqtt.publish("usensor/temperature/getvalue", String(temperature_snd).c_str());
+
+#ifdef SERIAL
+        Serial.print("temperature: ");
+        Serial.println(temperature_snd);
+#endif
+
+#ifdef DISPLAY
+        display_measures();
+#endif
+    }
+#endif
   
     if (digitalRead(0) == HIGH && on_motion == LOW) {
         on_motion = HIGH;
