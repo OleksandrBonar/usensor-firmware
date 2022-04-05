@@ -24,6 +24,11 @@
     #define ILLUMINANCE 1
 #endif
 
+#ifndef UV
+    #define UV 1
+    #define UV_PIN A0
+#endif
+
 #ifndef MOTION
     #define MOTION 1
     #define MOTION_PIN 0
@@ -89,6 +94,16 @@ const char pass[] = "";
     float illuminance_tmp[ILLUMINANCE_SAMPLE_CNT] = { 0.0f };
 #endif
 
+#ifdef UV
+    #define UV_FLUSH_CNT 60
+    #define UV_SAMPLE_CNT 15
+
+    int uv_cnt = 1;
+    float uv_avg = 0.0f;
+    float uv_snd = 0.0f;
+    float uv_tmp[UV_SAMPLE_CNT] = { 0.0f };
+#endif
+
 #ifdef MOTION
     int motion_val = LOW;
 #endif
@@ -114,9 +129,14 @@ void display_measures() {
     display.drawString(2, 2, String(illuminance_snd).c_str());
 #endif
 
+#ifdef UV
+    display.drawString(0, 3, "u:");
+    display.drawString(2, 3, String(uv_snd).c_str());
+#endif
+
 #ifdef MOTION
-    display.drawString(0, 3, "m:");
-    display.drawString(2, 3, motion_val == LOW ? "no" : "yes");
+    display.drawString(0, 4, "m:");
+    display.drawString(2, 4, motion_val == LOW ? "no" : "yes");
 #endif
 }
 #endif
@@ -254,6 +274,24 @@ void loop() {
         illuminance_avg = 0.5 * round(2.0 * illuminance_avg);
 #endif
 
+#ifdef UV
+        uv_cnt++;
+
+        // UV SMA calculation
+        for (int i = UV_SAMPLE_CNT; i > 1; i--) {
+            uv_tmp[i - 1] = uv_tmp[i - 2];
+        }
+        // The current UV index is (meanVal * 1000 / 4.3 - 83) / 21
+        uv_tmp[0] = analogRead(UV_PIN) / 1024 * 5;
+
+        uv_avg = 0.0f;
+        for (int i = 0; i < UV_SAMPLE_CNT; i++) {
+            uv_avg += uv_tmp[i];
+        }
+        uv_avg /= UV_SAMPLE_CNT;
+        uv_avg = 0.5 * round(2.0 * uv_avg);
+#endif
+
 #if defined HUMIDITY || defined TEMPERATURE
         if (sht.isConnected()) {
             sht.read();
@@ -347,6 +385,26 @@ void loop() {
 
 #ifdef MQTT
         mqtt.publish("usensor/temperature/getvalue", String(temperature_snd).c_str());
+#endif
+    }
+#endif
+
+#ifdef UV
+    if (uv_snd != uv_avg || uv_cnt % UV_FLUSH_CNT == 0) {
+        uv_cnt = 1;
+        uv_snd = uv_avg;
+
+#ifdef SERIAL
+        Serial.print("uv: ");
+        Serial.println(uv_snd);
+#endif
+
+#ifdef DISPLAY
+        display_measures();
+#endif
+
+#ifdef MQTT
+        mqtt.publish("usensor/uv/getvalue", String(uv_snd).c_str());
 #endif
     }
 #endif
