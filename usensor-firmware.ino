@@ -6,6 +6,12 @@
     #define SERIAL 1
 #endif
 
+#ifndef MQTT
+    #define MQTT 1
+    #define MQTT_SERVER "192.168.0.111"
+    #define MQTT_PORT 1883
+#endif
+
 #ifndef HUMIDITY
     #define HUMIDITY 1
 #endif
@@ -18,15 +24,24 @@
     #define ILLUMINANCE 1
 #endif
 
-#include <ESP8266WiFi.h>
-#include <PubSubClient.h>
 #include <Wire.h>
+#include <ESP8266WiFi.h>
+
+WiFiClient wifi;
+const char ssid[] = "";
+const char pass[] = "";
 
 #ifdef DISPLAY
     #include <U8g2lib.h>
     #include <U8x8lib.h>
 
     U8X8_SSD1306_64X48_ER_HW_I2C display(U8X8_PIN_NONE);
+#endif
+
+#ifdef MQTT
+    #include <PubSubClient.h>
+
+    PubSubClient mqtt(wifi);
 #endif
 
 #if defined HUMIDITY || defined TEMPERATURE
@@ -71,16 +86,8 @@
 
 #define MOTION_PIN 0
 
-char ssid[] = "";
-char pass[] = "";
-
-WiFiClient wifi;
-PubSubClient mqtt(wifi);
-
 int on_time = 0;
 int on_motion = LOW;
-
-void callback(char* t, byte* p, unsigned int l) {}
 
 #ifdef DISPLAY
 void display_measures() {
@@ -167,8 +174,9 @@ void setup() {
     display.drawString(0, 4, WiFi.macAddress().c_str());
 #endif
 
-    mqtt.setServer("192.168.0.111", 1883);
-    mqtt.setCallback(callback);
+#ifdef MQTT
+    mqtt.setServer(MQTT_SERVER, MQTT_PORT);
+#endif
 
     pinMode(MOTION_PIN, INPUT_PULLUP);
 
@@ -177,6 +185,7 @@ void setup() {
 }
 
 void loop() {
+#ifdef MQTT
     if (!mqtt.connected()) {
         // Loop until we're reconnected
         while (!mqtt.connected()) {
@@ -203,6 +212,7 @@ void loop() {
             }
         }
     }
+#endif
   
     if (millis() - on_time >= 1000) {
         on_time = millis();
@@ -274,8 +284,6 @@ void loop() {
         illuminance_cnt = 1;
         illuminance_snd = illuminance_avg;
 
-        mqtt.publish("usensor/illuminance/getvalue", String(illuminance_snd).c_str());
-
 #ifdef SERIAL
         Serial.print("illuminance: ");
         Serial.println(illuminance_snd);
@@ -283,6 +291,10 @@ void loop() {
 
 #ifdef DISPLAY
         display_measures();
+#endif
+
+#ifdef MQTT
+        mqtt.publish("usensor/illuminance/getvalue", String(illuminance_snd).c_str());
 #endif
     }
 #endif
@@ -292,8 +304,6 @@ void loop() {
         humidity_cnt = 1;
         humidity_snd = humidity_avg;
 
-        mqtt.publish("usensor/humidity/getvalue", String(humidity_snd).c_str());
-
 #ifdef SERIAL
         Serial.print("humidity: ");
         Serial.println(humidity_snd);
@@ -301,6 +311,10 @@ void loop() {
 
 #ifdef DISPLAY
         display_measures();
+#endif
+
+#ifdef MQTT
+        mqtt.publish("usensor/humidity/getvalue", String(humidity_snd).c_str());
 #endif
     }
 #endif
@@ -310,8 +324,6 @@ void loop() {
         temperature_cnt = 1;
         temperature_snd = temperature_avg;
 
-        mqtt.publish("usensor/temperature/getvalue", String(temperature_snd).c_str());
-
 #ifdef SERIAL
         Serial.print("temperature: ");
         Serial.println(temperature_snd);
@@ -320,12 +332,15 @@ void loop() {
 #ifdef DISPLAY
         display_measures();
 #endif
+
+#ifdef MQTT
+        mqtt.publish("usensor/temperature/getvalue", String(temperature_snd).c_str());
+#endif
     }
 #endif
   
     if (digitalRead(0) == HIGH && on_motion == LOW) {
         on_motion = HIGH;
-        mqtt.publish("usensor/motion/getvalue", "ON");
 
 #ifdef SERIAL
         Serial.println("montion: detected");
@@ -334,9 +349,12 @@ void loop() {
 #ifdef DISPLAY
         display_measures();
 #endif
+
+#ifdef MQTT
+        mqtt.publish("usensor/motion/getvalue", "ON");
+#endif
     } else if (digitalRead(0) == LOW && on_motion == HIGH) {
         on_motion = LOW;
-        mqtt.publish("usensor/motion/getvalue", "OFF");
 
 #ifdef SERIAL
         Serial.println("montion: clear");
@@ -345,7 +363,13 @@ void loop() {
 #ifdef DISPLAY
         display_measures();
 #endif
+
+#ifdef MQTT
+        mqtt.publish("usensor/motion/getvalue", "OFF");
+#endif
     }
-  
+
+#ifdef MQTT
     mqtt.loop();
+#endif
 }
