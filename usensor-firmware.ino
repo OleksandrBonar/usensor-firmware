@@ -24,6 +24,11 @@
     #define ILLUMINANCE 1
 #endif
 
+#ifndef MOTION
+    #define MOTION 1
+    #define MOTION_PIN 0
+#endif
+
 #include <Wire.h>
 #include <ESP8266WiFi.h>
 
@@ -84,10 +89,11 @@ const char pass[] = "";
     float illuminance_tmp[ILLUMINANCE_SAMPLE_CNT] = { 0.0f };
 #endif
 
-#define MOTION_PIN 0
+#ifdef MOTION
+    int motion_val = LOW;
+#endif
 
 int on_time = 0;
-int on_motion = LOW;
 
 #ifdef DISPLAY
 void display_measures() {
@@ -108,8 +114,10 @@ void display_measures() {
     display.drawString(2, 2, String(illuminance_snd).c_str());
 #endif
 
+#ifdef MOTION
     display.drawString(0, 3, "m:");
-    display.drawString(2, 3, on_motion == HIGH ? "yes" : "no");
+    display.drawString(2, 3, motion_val == LOW ? "no" : "yes");
+#endif
 }
 #endif
 
@@ -178,10 +186,12 @@ void setup() {
     mqtt.setServer(MQTT_SERVER, MQTT_PORT);
 #endif
 
+#ifdef MOTION
     pinMode(MOTION_PIN, INPUT_PULLUP);
+    motion_val = digitalRead(MOTION_PIN);
+#endif
 
     on_time = millis();
-    on_motion = digitalRead(MOTION_PIN);
 }
 
 void loop() {
@@ -202,7 +212,9 @@ void loop() {
 
                 // Once connected, publish an announcement...
                 mqtt.publish("usensor/system/getonline", "online");
-                mqtt.publish("usensor/motion/getvalue", on_motion == LOW ? "OFF" : "ON");
+#ifdef MOTION
+                mqtt.publish("usensor/motion/getvalue", motion_val == LOW ? "OFF" : "ON");
+#endif
             } else {
                 Serial.print("mqtt connection failed, rc=");
                 Serial.print(mqtt.state());
@@ -338,9 +350,10 @@ void loop() {
 #endif
     }
 #endif
-  
-    if (digitalRead(0) == HIGH && on_motion == LOW) {
-        on_motion = HIGH;
+
+#ifdef MOTION
+    if (digitalRead(MOTION_PIN) == HIGH && motion_val == LOW) {
+        motion_val = HIGH;
 
 #ifdef SERIAL
         Serial.println("montion: detected");
@@ -353,8 +366,8 @@ void loop() {
 #ifdef MQTT
         mqtt.publish("usensor/motion/getvalue", "ON");
 #endif
-    } else if (digitalRead(0) == LOW && on_motion == HIGH) {
-        on_motion = LOW;
+    } else if (digitalRead(MOTION_PIN) == LOW && motion_val == HIGH) {
+        motion_val = LOW;
 
 #ifdef SERIAL
         Serial.println("montion: clear");
@@ -368,6 +381,7 @@ void loop() {
         mqtt.publish("usensor/motion/getvalue", "OFF");
 #endif
     }
+#endif
 
 #ifdef MQTT
     mqtt.loop();
