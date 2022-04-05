@@ -2,6 +2,7 @@
 Universal sensor
 
 ## Features
+ - Display (SSD1306)
  - MQTT (over WiFi)
  - Temperature (SHT31)
  - Humidity (SHT31)
