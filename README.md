@@ -7,7 +7,7 @@ Universal sensor
  - Temperature (SHT31)
  - Humidity (SHT31)
  - Illuminance (BH1750)
- - UV ([GUVA-S12SD](https://github.com/OleksandrBonar/usensor-firmware/main/README-GUVA-S12SD.md))
+ - UV ([GUVA-S12SD](README-GUVA-S12SD.md))
  - Motion (HC-SR501)
 
 ## Hardware
