@@ -7,6 +7,7 @@ Universal sensor
  - Temperature (SHT31)
  - Humidity (SHT31)
  - Illuminance (BH1750)
+ - UV (GUVA-S12SD)
  - Motion (HC-SR501)
 
 ## Hardware
